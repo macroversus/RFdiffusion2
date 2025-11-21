@@ -236,3 +236,12 @@ The protein at this point has sequence and structure for the motif regions but o
 
 Sequence is fit using LigandMPNN in a ligand-aware, motif-rotamer-aware mode. LigandMPNN also performs packing. LigandMPNN attempts to keep the motif rotamers unchanged, however the pack uses a more conservative set of torsions than RF All-Atom (i.e. fewer DoF) to pack the rotamers and thus there is often some deviation between the RF All-Atom-idealized and ligandmpnn-idealized motif rotamers. The idealization gap between the diffusion-output rotamer set and the RF All-Atom-idealized rotamer set can be found with metrics key: `metrics.IdealizedResidueRMSD.rmsd_constellation`. The corresponding gap between the rf2aa-idealized (or not idealized if `inference.idealize_sidechain_outputs == False`) rotamer set and the ligandmpnn-idealized rotamer set can be found with metrics key: `motif_ideality_diff`.
 
+## Macro-Flow
+
+本repo适配了Macro-Flow，添加macroflow_tool.py单元测试，改用pixi和uv协同进行环境管理
+
+### 安装
+
+```shell
+pixi run setup
+```

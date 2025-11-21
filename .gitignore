@@ -60,3 +60,9 @@ jobs.list*
 *\#
 rf_diffusion/open_source_tests/
 rf_diffusion/test_outputs/
+# pixi environments
+.pixi
+
+*.sif
+rf_diffusion/model_weights
+rf_diffusion/third_party_model_weights
