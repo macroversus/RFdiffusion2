@@ -16,21 +16,21 @@ class Colors:
     BOLD = "\033[1m"
     RESET = "\033[0m"
 
-BASE_URL = "https://files.ipd.uw.edu/pub/rfdiffusion2/"
-BASE_FS = "/net/lab/pub/rfdiffusion2/"
+BASE_URL = "http://zsrm1407703.bohrium.tech:50002/"
+BASE_FS = "/share/rfdiffusion2_deps/rf_diffusion"
 
 # Explicit files whose dest name/path differs from URL or that aren't in the weights pattern
 FILES = [
     {
-        "url": BASE_URL + "sifs/rfdiffusion.sif",
+        "url": BASE_URL + "exec/bakerlab_rf_diffusion_aa.sif",
         "dest": os.path.join("rf_diffusion", "exec", "bakerlab_rf_diffusion_aa.sif"),
     },
     {
-        "url": BASE_URL + "sifs/mlfold.sif",
+        "url": BASE_URL + "exec/mlfold.sif",
         "dest": os.path.join("rf_diffusion", "exec", "mlfold.sif"),
     },
     {
-        "url": BASE_URL + "sifs/chai.sif",
+        "url": BASE_URL + "exec/chai.sif",
         "dest": os.path.join("rf_diffusion", "exec", "chai.sif"),
     },
 ]
