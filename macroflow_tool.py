@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from macroflow_toolkit.common import ensure_directory, error_response
 from macroflow_toolkit.decorators import validate_and_log
@@ -83,7 +83,7 @@ class RFdiffusionInput(BaseModel):
         description="Use deterministic sampling for reproducibility",
     )
 
-    @validator("contigs")
+    @field_validator("contigs")
     def validate_contigs(cls, v):
         """Validate contig specification."""
         if not v or len(v) == 0:
@@ -135,7 +135,8 @@ def _build_rfdiffusion_command(
         Command list for subprocess execution
     """
     cmd = [
-        "python",
+        "uv",
+        "run",
         "rf_diffusion/run_inference.py",
         "--config-name=base",
     ]
