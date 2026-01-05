@@ -15,7 +15,12 @@ from typing import Dict, List, Optional
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
-from macroflow_toolkit.common import ensure_directory, error_response
+from macroflow_toolkit.common import (
+    ensure_directory,
+    error_response,
+    resolve_any_path,
+    to_virtual_path,
+)
 from macroflow_toolkit.decorators import validate_and_log
 from macroflow_toolkit.deps import CommandRunner, PathResolver, WorkspaceBuilder
 
@@ -248,8 +253,8 @@ def _parse_rfdiffusion_output(
     # Convert paths to virtual paths
     def _to_virt(p: Optional[str]) -> Optional[str]:
         if not p:
-            return p
-        return path_resolver.to_virtual(Path(p))
+            return None
+        return to_virtual_path(Path(p), path_resolver)
 
     result = {
         "success": True,
@@ -297,14 +302,7 @@ def run_rfdiffusion_design(
     # Resolve input PDB path if provided
     input_path = None
     if args.input_pdb:
-        system_path = Path(args.input_pdb)
-        if system_path.is_absolute() and system_path.exists():
-            input_path = system_path.resolve()
-        elif args.input_pdb.startswith("/") or path_resolver.get_workspace_root() is not None:
-            input_path = path_resolver.resolve(args.input_pdb)
-        else:
-            input_path = Path(args.input_pdb).resolve()
-
+        input_path = resolve_any_path(args.input_pdb, path_resolver)
         if not input_path.exists():
             return RFdiffusionOutput(
                 success=False,
@@ -313,18 +311,16 @@ def run_rfdiffusion_design(
             )
 
     # Determine output directory
+    workspace_root = path_resolver.get_workspace_root() if path_resolver else None
     if args.output_dir is None:
-        if input_path and "workspace" in str(input_path.parent):
-            output_dir = str(input_path.parent)
+        if input_path and workspace_root and workspace_root in input_path.parents:
+            output_path = input_path.parent
         else:
-            output_dir = str(workspace.create("rfdiffusion"))
+            output_path = Path(workspace.create("rfdiffusion"))
     else:
-        if args.output_dir.startswith("/") or path_resolver.get_workspace_root() is not None:
-            output_dir = str(path_resolver.resolve(args.output_dir))
-        else:
-            output_dir = args.output_dir
+        output_path = resolve_any_path(args.output_dir, path_resolver)
 
-    output_path = Path(output_dir).resolve()
+    output_path = Path(output_path).resolve()
     ensure_directory(output_path)
 
     # Create output prefix
@@ -366,7 +362,7 @@ def run_rfdiffusion_design(
         **results,
         command=" ".join(full_cmd),
         processing_time=processing_time,
-        input_pdb=path_resolver.to_virtual(input_path) if input_path else None,
+        input_pdb=to_virtual_path(input_path, path_resolver) if input_path else None,
         contigs=args.contigs,
     )
 
@@ -514,6 +510,129 @@ def make_tool(
         "input_formats": ["pdb"],
         "output_format": "pdb",
         "advanced_tool": True,
+        # Output schema for workflow data flow
+        "output_schema": {
+            "best_design": {
+                "type": "path",
+                "description": "Path to the best designed structure (highest LDDT score if available)",
+                "example": "/workspace/rfdiffusion/design_0.pdb",
+            },
+            "design_files": {
+                "type": "array",
+                "description": "List of all generated design PDB files",
+            },
+            "trb_files": {
+                "type": "array",
+                "description": "List of trajectory/metadata files (.trb) for each design",
+            },
+            "best_trb": {
+                "type": "path",
+                "description": "Trajectory file for the best design",
+            },
+            "output_dir": {
+                "type": "path",
+                "description": "Directory containing all design outputs",
+            },
+            "num_designs_generated": {
+                "type": "integer",
+                "description": "Number of designs successfully generated",
+            },
+            "lddt_scores": {
+                "type": "array",
+                "description": "Confidence scores (LDDT) for each design",
+            },
+            "mean_lddt": {
+                "type": "float",
+                "description": "Average LDDT score across all designs",
+            },
+            "processing_time": {
+                "type": "float",
+                "description": "Time taken to complete design in seconds",
+            },
+            "success": {
+                "type": "boolean",
+                "description": "Whether the design completed successfully",
+            },
+        },
+        "primary_output": "best_design",
+        "parameters": [
+            {
+                "name": "contigs",
+                "type": "array",
+                "required": True,
+                "description": "Contig specification defining which parts to design vs. keep fixed (e.g., ['10-50,A163-181,30'] means 10-50 residues, then keep residues 163-181 from chain A, then 30 residues)",
+            },
+            {
+                "name": "input_pdb",
+                "type": "string",
+                "required": False,
+                "description": "Path to input PDB file for scaffolding/motif-based design (optional for unconditional design)",
+            },
+            {
+                "name": "output_dir",
+                "type": "string",
+                "required": False,
+                "description": "Directory to save design results (auto-generated if not provided)",
+            },
+            {
+                "name": "num_designs",
+                "type": "integer",
+                "required": False,
+                "default": 10,
+                "description": "Number of designs to generate",
+            },
+            {
+                "name": "inference_steps",
+                "type": "integer",
+                "required": False,
+                "default": 50,
+                "description": "Number of diffusion inference steps (T), more steps = higher quality but slower",
+            },
+            {
+                "name": "contig_atoms",
+                "type": "string",
+                "required": False,
+                "description": "Atomic-level motif specification for active site design (e.g., \"{'A518':'CG,OD1,OD2','A616':'CG,OD1,OD2'}\")",
+            },
+            {
+                "name": "hotspot_residues",
+                "type": "string",
+                "required": False,
+                "description": "Specific residues to guide design (e.g., 'A1-4,B5,B8,B9')",
+            },
+            {
+                "name": "ligand",
+                "type": "string",
+                "required": False,
+                "description": "Ligand chain/residue name for small molecule binder design",
+            },
+            {
+                "name": "symmetry",
+                "type": "string",
+                "required": False,
+                "description": "Symmetry specification (e.g., 'C3' for 3-fold rotational, 'D2' for dihedral, 'I' for icosahedral)",
+            },
+            {
+                "name": "contig_length",
+                "type": "string",
+                "required": False,
+                "description": "Total length constraint (e.g., '100-150' for length between 100-150 residues)",
+            },
+            {
+                "name": "design_startnum",
+                "type": "integer",
+                "required": False,
+                "default": 0,
+                "description": "Starting index for design numbering",
+            },
+            {
+                "name": "deterministic",
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Use deterministic sampling for reproducibility",
+            },
+        ],
     })
 
     return rfdiffusion_design
